@@ -1,0 +1,100 @@
+import { ActionIcon, Group, Paper, Stack, Text, Tooltip } from '@mantine/core';
+import { IconPlayerPlay, IconPlayerStop, IconPlayerTrackNext, IconPlayerTrackPrev } from '@tabler/icons-react';
+import { memo, useMemo } from 'react';
+import { LABEL_FONT_FAMILY } from '../../lib/canvas.ts';
+import { Time } from '../../lib/epoch.ts';
+import { useAppState } from '../../lib/state.ts';
+import { Epoch } from '../../lib/types.ts';
+import { humanTimeUnits, pluralize } from '../../lib/utils.ts';
+import { buttonGap, iconSize } from './constants.ts';
+import { EpochPopover } from './EpochPopover.tsx';
+
+const SPEEDS = [
+  Time.SECOND,
+  Time.MINUTE,
+  Time.HOUR,
+  Time.HOUR * 6,
+  Time.HOUR * 12,
+  Time.DAY,
+  Time.DAY * 3,
+  Time.WEEK,
+  Time.MONTH,
+  Time.MONTH * 3,
+  Time.MONTH * 6,
+  Time.YEAR,
+  Time.YEAR * 2,
+  Time.YEAR * 3,
+];
+const FASTEST_SPEED = SPEEDS[SPEEDS.length - 1];
+
+function findNextSpeed(speed: number, direction: 'faster' | 'slower') {
+  const speeds = direction === 'faster' ? SPEEDS : [...SPEEDS].reverse();
+  return speeds.find(s => (direction === 'faster' ? s > speed : s < speed)) ?? FASTEST_SPEED;
+}
+
+function incrementSpeed(speed: number, direction: 'up' | 'down') {
+  const isReverse = speed < 0;
+  return direction === 'down'
+    ? isReverse
+      ? -findNextSpeed(Math.abs(speed), 'faster')
+      : speed <= 1
+        ? -Time.SECOND
+        : findNextSpeed(speed, 'slower')
+    : isReverse
+      ? speed >= -1
+        ? Time.SECOND
+        : -findNextSpeed(Math.abs(speed), 'slower')
+      : findNextSpeed(speed, 'faster');
+}
+
+type Props = {
+  setEpoch: (epoch: Epoch) => void;
+};
+export const TimeControls = memo(function TimeControlsComponent({ setEpoch }: Props) {
+  const speed = useAppState(state => state.settings.speed);
+  const play = useAppState(state => state.settings.play);
+  const updateSettings = useAppState(state => state.updateSettings);
+
+  const [t, tUnits] = useMemo(() => humanTimeUnits(speed, true), [speed]);
+
+  const slowDownDisabled = speed < 0 && speed <= -FASTEST_SPEED;
+  const speedUpDisabled = speed > 0 && speed >= FASTEST_SPEED;
+  return (
+    <Stack gap={buttonGap}>
+      <Paper pr={buttonGap} py={2} radius="md">
+        <Stack gap={2} align="flex-start" fz="xs">
+          <EpochPopover setEpoch={setEpoch} />
+          <Text ml={8} inherit c="dimmed" ff={LABEL_FONT_FAMILY}>
+            {tUnits === 'second' && t === 1 ? 'speed: realtime' : `${pluralize(t, tUnits)} / second`}
+          </Text>
+        </Stack>
+      </Paper>
+
+      <Group gap={buttonGap} align="flex-end">
+        <Tooltip disabled={slowDownDisabled} position="top-end" label="Slow Down">
+          <ActionIcon
+            aria-label="Slow Down"
+            disabled={slowDownDisabled}
+            onClick={() => updateSettings(({ speed, ...prev }) => ({ ...prev, speed: incrementSpeed(speed, 'down') }))}
+          >
+            <IconPlayerTrackPrev size={iconSize} />
+          </ActionIcon>
+        </Tooltip>
+        <Tooltip position="top" label={play ? 'Stop' : 'Start'}>
+          <ActionIcon aria-label={play ? 'Stop' : 'Start'} onClick={() => updateSettings({ play: !play })}>
+            {play ? <IconPlayerStop size={iconSize} /> : <IconPlayerPlay size={iconSize} />}
+          </ActionIcon>
+        </Tooltip>
+        <Tooltip disabled={speedUpDisabled} position="right" label="Speed Up">
+          <ActionIcon
+            aria-label="Speed Up"
+            disabled={speedUpDisabled}
+            onClick={() => updateSettings(({ speed, ...prev }) => ({ ...prev, speed: incrementSpeed(speed, 'up') }))}
+          >
+            <IconPlayerTrackNext size={iconSize} />
+          </ActionIcon>
+        </Tooltip>
+      </Group>
+    </Stack>
+  );
+});

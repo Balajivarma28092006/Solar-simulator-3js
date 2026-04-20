@@ -1,0 +1,63 @@
+import { MouseEvent, PointerEvent, useRef } from 'react';
+import { SolarSystemModel } from '../lib/model/SolarSystemModel.ts';
+import { magnitude } from '../lib/physics.ts';
+import { useAppState } from '../lib/state.ts';
+import { Point2 } from '../lib/types.ts';
+import { useIsTouchDevice } from './useIsTouchDevice.ts';
+
+const DRAG_PX_THRESHOLD = 10;
+
+type DragDetector = {
+  dragged: boolean;
+  initial: Point2;
+};
+
+export function useCursorControls(model: SolarSystemModel | null) {
+  const settings = useAppState(state => state.settings);
+  const updateSettings = useAppState(state => state.updateSettings);
+  const isTouchDevice = useIsTouchDevice();
+  const dragDetectorRef = useRef<DragDetector | null>(null);
+  const interactPxThreshold = isTouchDevice ? 25 : 10;
+
+  function getCursorCoordinates(event: PointerEvent<HTMLElement> | MouseEvent<HTMLElement>): Point2 {
+    const { left, top } = event.currentTarget.getBoundingClientRect();
+    return [event.clientX - left, event.clientY - top];
+  }
+
+  function onPointerDown(event: PointerEvent<HTMLElement>) {
+    dragDetectorRef.current = { dragged: false, initial: getCursorCoordinates(event) };
+  }
+
+  function onPointerLeave() {
+    dragDetectorRef.current = null;
+  }
+
+  function onPointerMove(event: PointerEvent<HTMLElement>) {
+    const dragDetector = dragDetectorRef.current;
+    const [eventX, eventY] = getCursorCoordinates(event);
+    if (dragDetector != null) {
+      const [dragX, dragY] = dragDetector.initial;
+      const distance = magnitude([dragX - eventX, dragY - eventY]);
+      dragDetectorRef.current = { ...dragDetector, dragged: dragDetector.dragged || distance > DRAG_PX_THRESHOLD };
+    }
+
+    if (model == null || dragDetectorRef.current?.dragged) return;
+    const closeBody = model.findCloseBody([eventX, eventY], settings, interactPxThreshold);
+    updateSettings({ hover: closeBody?.body?.id ?? null });
+  }
+
+  function onClick(event: MouseEvent<HTMLElement>) {
+    // only process this as a click if the user hasn't been dragging around; it's bad UX if the end of your dragging
+    // ends in selecting the planet underneath your cursor
+    const isDragging = dragDetectorRef.current?.dragged;
+    dragDetectorRef.current = null;
+    if (isDragging || model == null) return;
+
+    const closeBody = model.findCloseBody(getCursorCoordinates(event), settings, interactPxThreshold);
+    if (closeBody != null) {
+      updateSettings({ center: closeBody.body.id });
+    }
+  }
+
+  return { onPointerDown, onPointerMove, onPointerLeave, onClick };
+}
