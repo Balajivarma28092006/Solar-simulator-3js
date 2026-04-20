@@ -34,11 +34,11 @@ export default async function handle(request: Request) {
   });
 
   const prompt = `
-Generate a concise 5-6 sentence summary of ${search}.
+Generate a concise 3-4 sentence summary of ${search}.
 Do not restate the organization that launched the spacecraft.
 
 Requirements:
-- Return exactly 5 or 6 sentences.
+- Return exactly 3 or 4 sentences.
 - Focus on mission events, timeline, objectives, and outcomes.
 - Keep it factual and avoid hype or filler.
 - If details are uncertain, omit them instead of speculating.

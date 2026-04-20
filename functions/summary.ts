@@ -31,10 +31,10 @@ export default async function handle(request: Request) {
   });
 
   const prompt = `
-Generate a concise 5-6 sentence summary of ${search}.
+Generate a concise 3-4 sentence summary of ${search}.
 
 Requirements:
-- Return exactly 5 or 6 sentences.
+- Return exactly 3 or 4 sentences.
 - Keep it factual, specific, and information-dense.
 - Avoid generic filler or intro/conclusion text.
 - If a detail is uncertain, skip it rather than guessing.
@@ -46,7 +46,7 @@ Return ONLY the summary text.
   const completionStream = await client.chat.completions.create({
     model: 'llama-3.3-70b-versatile',
     stream: true,
-    max_completion_tokens: 320,
+    max_completion_tokens: 240,
     temperature: 0.3,
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
