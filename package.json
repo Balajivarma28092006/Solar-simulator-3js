@@ -5,7 +5,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "netlify dev",
+    "dev:vite": "vite",
     "build": "tsc -b && vite build",
     "postbuild": "vite-node scripts/sitemap.ts",
     "preview": "vite preview",
