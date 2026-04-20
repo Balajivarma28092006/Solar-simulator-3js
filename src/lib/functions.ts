@@ -8,6 +8,44 @@ type ChatCompletionChunk = {
   }>;
 };
 
+function normalizeSseNewlines(input: string) {
+  return input.replace(/\r\n/g, '\n');
+}
+
+function parseSseEventContent(event: string): string {
+  if (!event) return '';
+
+  const normalizedEvent = normalizeSseNewlines(event);
+  const dataLines = normalizedEvent
+    .split('\n')
+    .map(line => line.trimStart())
+    .filter(line => line.startsWith('data:'))
+    .map(line => line.slice(5));
+
+  if (dataLines.length === 0) {
+    return normalizedEvent;
+  }
+
+  let parsed = '';
+  for (const payloadRaw of dataLines) {
+    const payload = payloadRaw;
+    if (!payload || payload.trim() === '[DONE]') continue;
+
+    try {
+      const json = JSON.parse(payload);
+      if (json.content) {
+        parsed += json.content;
+      } else {
+        parsed += payload;
+      }
+    } catch {
+      parsed += payload;
+    }
+  }
+
+  return parsed;
+}
+
 export function currentDateSentence() {
   const today = new Date().toLocaleDateString('en-US', {
     year: 'numeric',
@@ -35,43 +73,18 @@ export async function storeResponse(store: Store, key: string, stream: ReadableS
       const { done, value } = await reader.read();
       if (done) break;
 
-      buffer += decoder.decode(value, { stream: true });
+      buffer += normalizeSseNewlines(decoder.decode(value, { stream: true }));
 
       const events = buffer.split('\n\n');
       buffer = events.pop() || '';
 
       for (const event of events) {
-        if (!event) continue;
-        // Support both standard SSE `data:` lines and plain text chunks
-        const dataLines = event
-          .split('\n')
-          .map(line => line.trimStart())
-          .filter(line => line.startsWith('data:'))
-          .map(line => line.slice(5)); // keep everything after "data:" verbatim
-
-        if (dataLines.length === 0) {
-          // Treat whole event as raw text if there are no data lines
-          finalResult += event;
-          continue;
-        }
-
-        for (const payloadRaw of dataLines) {
-          const payload = payloadRaw;
-          if (!payload || payload.trim() === '[DONE]') continue;
-
-          try {
-            const json = JSON.parse(payload);
-            if (json.content) {
-              finalResult += json.content;
-            } else {
-              finalResult += payload;
-            }
-          } catch {
-            finalResult += payload;
-          }
-        }
+        finalResult += parseSseEventContent(event);
       }
     }
+    // Flush any trailing buffered event.
+    finalResult += parseSseEventContent(buffer);
+
     // Persist the aggregated plain-text content
     await store.set(key, finalResult);
   } catch (error) {
@@ -113,7 +126,7 @@ export async function readStreamResponse(
     const { done, value } = await reader.read();
     if (done) break;
 
-    const chunkText = decoder.decode(value, { stream: true });
+    const chunkText = normalizeSseNewlines(decoder.decode(value, { stream: true }));
     buffer += chunkText;
 
     // If we never see SSE markers, fall back to treating the entire
@@ -129,42 +142,15 @@ export async function readStreamResponse(
 
     for (const event of events) {
       if (!event) continue;
-
-      // Find the first data line if present
-      const dataLine = event
-        .split('\n')
-        .map(line => line.trimStart())
-        .find(line => line.startsWith('data:'));
-
-      if (!dataLine) {
-        // No SSE prefix; treat the whole event as plain text
-        out += event;
-        setData(out);
-        continue;
-      }
-
-      sawSse = true;
-      const payloadRaw = dataLine.slice(5);
-      const doneCheck = payloadRaw.trim();
-      if (!payloadRaw || doneCheck === '[DONE]') continue;
-
-      let appended = '';
-      try {
-        const json = JSON.parse(payloadRaw);
-        if (json.content) {
-          appended = json.content;
-        } else {
-          appended = payloadRaw;
-        }
-      } catch {
-        // Non-JSON payload, just append raw text
-        appended = payloadRaw;
-      }
-
-      out += appended;
+      if (event.includes('data:')) sawSse = true;
+      out += parseSseEventContent(event);
       setData(out);
     }
   }
+
+  // Flush any trailing buffered event that did not end with a separator.
+  out += parseSseEventContent(buffer);
+  setData(out);
 
   setActive(false);
   return out;
@@ -250,11 +236,12 @@ export function simulateTokenGeneration(eventStream: string, delayMin = 10, dela
   const encoder = new TextEncoder();
 
   (async () => {
-    const chunks = eventStream.split(' ');
+    // Keep original spacing/punctuation while simulating token-like chunks.
+    const chunks = eventStream.match(/\S+\s*/g) ?? [eventStream];
     for (const chunk of chunks) {
       await new Promise(r => setTimeout(r, Math.random() * (delayMax - delayMin) + delayMin));
-      // Emit SSE JSON events so the client parser can handle cached streams
-      const sse = asSse(chunk + ' ');
+      // Emit SSE JSON events so the client parser can handle cached streams.
+      const sse = asSse(chunk);
       await writer.write(encoder.encode(sse));
     }
     // Send a DONE marker for completeness

@@ -2,6 +2,8 @@ import { getStore } from '@netlify/blobs';
 import { Groq } from 'groq-sdk';
 import { asSseStream, errorResponse, simulateTokenGeneration, storeResponse, SYSTEM_PROMPT } from '../src/lib/functions';
 
+const CACHE_KEY_VERSION = 'v2';
+
 /**
  * Step 1: Fetch Wikidata ID
  */
@@ -165,7 +167,8 @@ export default async function handle(request: Request) {
   };
 
   const store = getStore('facts');
-  const stored = await store.get(blobId);
+  const cacheKey = `${CACHE_KEY_VERSION}:${blobId}`;
+  const stored = await store.get(cacheKey);
 
   // Serve cached response if exists
   if (stored != null) {
@@ -187,7 +190,7 @@ export default async function handle(request: Request) {
   const [streamForResponse, streamForStore] = stream.tee();
 
   // Cache in background
-  storeResponse(store, blobId, streamForStore);
+  storeResponse(store, cacheKey, streamForStore);
 
   return new Response(streamForResponse, {
     headers: responseHeaders,

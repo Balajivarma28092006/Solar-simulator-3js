@@ -2,6 +2,8 @@ import { getStore } from '@netlify/blobs';
 import { Groq } from 'groq-sdk';
 import { asSse, asSseStream, errorResponse, simulateTokenGeneration, storeResponse, SYSTEM_PROMPT } from '../src/lib/functions';
 
+const CACHE_KEY_VERSION = 'v2';
+
 export default async function handle(request: Request) {
   const params = new URL(request.url).searchParams;
   const search = params.get('search');
@@ -18,7 +20,8 @@ export default async function handle(request: Request) {
   };
 
   const store = getStore('summary');
-  const stored = await store.get(search);
+  const cacheKey = `${CACHE_KEY_VERSION}:${search}`;
+  const stored = await store.get(cacheKey);
 
   // ✅ Serve from cache if available (unchanged behavior)
   if (stored != null) {
@@ -31,10 +34,10 @@ export default async function handle(request: Request) {
   });
 
   const prompt = `
-Generate a concise 3-4 sentence summary of ${search}.
+Generate a concise 5-6 sentence summary of ${search}.
 
 Requirements:
-- Return exactly 3 or 4 sentences.
+- Return exactly 5 or 6 sentences.
 - Keep it factual, specific, and information-dense.
 - Avoid generic filler or intro/conclusion text.
 - If a detail is uncertain, skip it rather than guessing.
@@ -46,7 +49,7 @@ Return ONLY the summary text.
   const completionStream = await client.chat.completions.create({
     model: 'llama-3.3-70b-versatile',
     stream: true,
-    max_completion_tokens: 240,
+    max_completion_tokens: 360,
     temperature: 0.3,
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
@@ -60,7 +63,7 @@ Return ONLY the summary text.
   const [streamForResponse, streamForStore] = readableStream.tee();
 
   // ✅ Cache stream exactly like before
-  storeResponse(store, search, streamForStore);
+  storeResponse(store, cacheKey, streamForStore);
 
   return new Response(streamForResponse, { headers: responseHeaders });
 }

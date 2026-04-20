@@ -2,6 +2,8 @@ import { getStore } from '@netlify/blobs';
 import { Groq } from 'groq-sdk';
 import { asSse, asSseStream, errorResponse, simulateTokenGeneration, storeResponse, SYSTEM_PROMPT } from '../src/lib/functions';
 
+const CACHE_KEY_VERSION = 'v2';
+
 export default async function handle(request: Request) {
   const params = new URL(request.url).searchParams;
   const search = params.get('search');
@@ -20,7 +22,8 @@ export default async function handle(request: Request) {
   };
 
   const store = getStore('visit');
-  const stored = await store.get(blobId);
+  const cacheKey = `${CACHE_KEY_VERSION}:${blobId}`;
+  const stored = await store.get(cacheKey);
 
   // ✅ Serve cached version if exists
   if (stored != null) {
@@ -34,11 +37,11 @@ export default async function handle(request: Request) {
   });
 
   const prompt = `
-Generate a concise 3-4 sentence summary of ${search}.
+Generate a concise 5-6 sentence summary of ${search}.
 Do not restate the organization that launched the spacecraft.
 
 Requirements:
-- Return exactly 3 or 4 sentences.
+- Return exactly 5 or 6 sentences.
 - Focus on mission events, timeline, objectives, and outcomes.
 - Keep it factual and avoid hype or filler.
 - If details are uncertain, omit them instead of speculating.
@@ -71,7 +74,7 @@ Return ONLY the summary text.
   const [streamForResponse, streamForStore] = readableStream.tee();
 
   // ✅ Store stream for caching
-  storeResponse(store, blobId, streamForStore);
+  storeResponse(store, cacheKey, streamForStore);
 
   return new Response(streamForResponse, {
     headers: responseHeaders,
