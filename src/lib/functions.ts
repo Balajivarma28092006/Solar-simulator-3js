@@ -1,5 +1,12 @@
 import { Store } from '@netlify/blobs';
-import type OpenAI from 'openai';
+
+type ChatCompletionChunk = {
+  choices?: Array<{
+    delta?: {
+      content?: string | null;
+    };
+  }>;
+};
 
 export function currentDateSentence() {
   const today = new Date().toLocaleDateString('en-US', {
@@ -73,7 +80,7 @@ export async function storeResponse(store: Store, key: string, stream: ReadableS
 }
 
 /**
- * Client-side SSE reader (SAFE for OpenAI SSE)
+ * Client-side SSE reader for streamed chat completions
  */
 export async function readStreamResponse(
   response: Response,
@@ -81,6 +88,19 @@ export async function readStreamResponse(
   setData: (data: string) => void
 ) {
   setActive(true);
+  if (!response.ok) {
+    setActive(false);
+    throw new Error(`Request failed with status ${response.status}`);
+  }
+
+  const contentType = response.headers.get('content-type')?.toLowerCase() ?? '';
+  if (contentType.includes('text/html')) {
+    setActive(false);
+    throw new Error(
+      'Received HTML instead of API stream. Check that /api routes are proxied to Netlify functions in dev.'
+    );
+  }
+
   const reader = response.body?.getReader();
   if (!reader) return '';
 
@@ -166,17 +186,15 @@ export function asSse(content: string) {
 }
 
 /**
- * 🔥 OPENAI STREAM → SSE
- * Wraps an OpenAI streaming completion in JSON SSE events.
+ * Converts provider stream chunks into JSON SSE events.
  */
-export function asSseStream(stream: AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>): ReadableStream {
+export function asSseStream(stream: AsyncIterable<ChatCompletionChunk>): ReadableStream {
   return new ReadableStream({
     async start(controller) {
       const encoder = new TextEncoder();
 
       try {
         for await (const chunk of stream) {
-          console.log('STREAM CHUNK:', JSON.stringify(chunk));
           const text = chunk.choices?.[0]?.delta?.content;
           if (!text) continue;
 

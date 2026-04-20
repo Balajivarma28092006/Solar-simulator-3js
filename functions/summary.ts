@@ -1,5 +1,5 @@
 import { getStore } from '@netlify/blobs';
-import OpenAI from 'openai';
+import { Groq } from 'groq-sdk';
 import { asSse, asSseStream, errorResponse, simulateTokenGeneration, storeResponse, SYSTEM_PROMPT } from '../src/lib/functions';
 
 export default async function handle(request: Request) {
@@ -26,32 +26,27 @@ export default async function handle(request: Request) {
     return new Response(content, { headers: responseHeaders });
   }
 
-  // ✅ OpenRouter client (OpenAI-compatible)
-  const client = new OpenAI({
-    apiKey: process.env.OPENROUTER_API_KEY,
-    baseURL: 'https://openrouter.ai/api/v1',
+  const client = new Groq({
+    apiKey: process.env.GROQ_API_KEY,
   });
 
   const prompt = `
-Generate a 1-sentence summary of ${search}.
+Generate a concise 5-6 sentence summary of ${search}.
 
-Examples of good summaries:
+Requirements:
+- Return exactly 5 or 6 sentences.
+- Keep it factual, specific, and information-dense.
+- Avoid generic filler or intro/conclusion text.
+- If a detail is uncertain, skip it rather than guessing.
 
-Phobos:
-A small, irregularly shaped moon that orbits once every 7 hours only ~6000 km from the planet's surface.
-
-Iapetus:
-A distinctive moon with a highly inclined orbit, dramatic two-toned coloration, and a prominent equatorial ridge that gives it a walnut-like appearance.
-
-Return ONLY one concise sentence.
+Return ONLY the summary text.
 `;
 
-  // 🔥 Streaming completion (free model)
+  // Streaming completion using Groq chat API
   const completionStream = await client.chat.completions.create({
-    model: 'openai/gpt-5.2',
-    // model: 'gpt-4o-mini',
+    model: 'llama-3.3-70b-versatile',
     stream: true,
-    max_tokens: 120,
+    max_completion_tokens: 320,
     temperature: 0.3,
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
@@ -59,7 +54,7 @@ Return ONLY one concise sentence.
     ],
   });
 
-  // ✅ Convert OpenAI stream → JSON SSE using shared helper
+  // Convert streamed chunks into JSON SSE for the frontend parser/cache
   const readableStream = asSseStream(completionStream);
 
   const [streamForResponse, streamForStore] = readableStream.tee();

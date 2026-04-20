@@ -5,6 +5,15 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   plugins: [react()],
   assetsInclude: ['assets/*.{png,gif,jpg,ttf}'],
+  server: {
+    proxy: {
+      '/api': {
+        target: process.env.VITE_FUNCTIONS_ORIGIN ?? 'http://localhost:8888',
+        changeOrigin: true,
+        rewrite: path => path.replace(/^\/api/, '/.netlify/functions'),
+      },
+    },
+  },
   build: {
     rollupOptions: {
       output: {

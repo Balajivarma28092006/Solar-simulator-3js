@@ -1,5 +1,5 @@
 import { getStore } from '@netlify/blobs';
-import OpenAI from 'openai';
+import { Groq } from 'groq-sdk';
 import { asSseStream, errorResponse, simulateTokenGeneration, storeResponse, SYSTEM_PROMPT } from '../src/lib/functions';
 
 /**
@@ -93,13 +93,11 @@ function wikidataInfoAsCsv(wikidataInfo: Array<WikidataDatum>): string {
 }
 
 /**
- * 🔥 Step 4: FREE LLM (OpenRouter Streaming)
- * Uses free models via OpenRouter and converts to JSON SSE.
+ * Step 4: Generate grounded facts with Groq streaming.
  */
 async function formatWithFreeLLM(search: string, wikidataInfo: Array<WikidataDatum>) {
-  const client = new OpenAI({
-    apiKey: process.env.OPENROUTER_API_KEY,
-    baseURL: 'https://openrouter.ai/api/v1',
+  const client = new Groq({
+    apiKey: process.env.GROQ_API_KEY,
   });
 
   const prompt = `
@@ -128,11 +126,10 @@ Wikidata CSV:
 ${wikidataInfoAsCsv(wikidataInfo)}
 `;
 
-  const openaiStream = await client.chat.completions.create({
-    model: 'openai/gpt-5.2', // FREE model
-    // model: 'gpt-4o-mini',
+  const completionStream = await client.chat.completions.create({
+    model: 'llama-3.3-70b-versatile',
     stream: true,
-    max_tokens: 1024,
+    max_completion_tokens: 1024,
     messages: [
       {
         role: 'system',
@@ -145,8 +142,7 @@ ${wikidataInfoAsCsv(wikidataInfo)}
     ],
   });
 
-  // Wrap OpenAI stream in JSON SSE events
-  return asSseStream(openaiStream);
+  return asSseStream(completionStream);
 }
 
 /**
@@ -186,7 +182,7 @@ export default async function handle(request: Request) {
 
   const info = await getWikidataInfo(id);
 
-  // Use FREE LLM instead of Anthropic
+  // Stream response through Groq, then cache the aggregated plain text
   const stream = await formatWithFreeLLM(search, info);
   const [streamForResponse, streamForStore] = stream.tee();
 
