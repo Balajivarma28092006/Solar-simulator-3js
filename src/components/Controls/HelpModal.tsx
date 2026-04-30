@@ -129,7 +129,7 @@ export function HelpModal({ isOpen, onClose }: Props) {
           <Group p="md" justify="space-between" align="center" gap="xs">
             <Group gap="xs">
               <IconCircleDot {...iconProps} />
-              <Title order={5}>Atlas of Space</Title>
+              <Title order={5}>Solar Simulator</Title>
             </Group>
             <ActionIcon onClick={onClose}>
               <IconX {...iconProps} />
@@ -140,7 +140,7 @@ export function HelpModal({ isOpen, onClose }: Props) {
         <Stack p="md" gap="md">
           <HighlightedText
             segments={[
-              { content: 'Welcome to the Atlas of Space — an ' },
+              { content: 'Welcome to the Solar Simulator — an ' },
               { content: 'interactive visualization', highlight: true },
               { content: ' to explore the planets, moons, asteroids, and other objects in the Solar System.' },
             ]}
@@ -201,11 +201,11 @@ export function HelpModal({ isOpen, onClose }: Props) {
               2024-{new Date().getFullYear()}
             </Text>
           </Group>
-          <Anchor href="https://github.com/gordonhart/atlasof.space">
+          <Anchor>
             <Group gap={4} wrap="nowrap">
               <IconBrandGithub size={iconSize} color="var(--mantine-color-dimmed)" />
-              <Text fz="xs" c="dimmed" fw="bold">
-                @gordonhart/atlasof.space
+              <Text c="dimmed" fz="xs">
+                View on GitHub
               </Text>
               <IconArrowUpRight size={iconSize} color="var(--mantine-color-dimmed)" />
             </Group>

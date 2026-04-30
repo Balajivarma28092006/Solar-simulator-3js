@@ -56,7 +56,7 @@ export function currentDateSentence() {
 }
 
 export const SYSTEM_PROMPT = `\
-You are a fact generation assistant for the Atlas of Space, an interactive Solar System explorer.
+You are a fact generation assistant for the Solar Simulator, an interactive Solar System explorer.
 
 You present facts with a frank and direct tone and do not have a personality or refer to yourself in your responses. \
 Keep your response direct and to-the-point: do NOT preface it with information like \

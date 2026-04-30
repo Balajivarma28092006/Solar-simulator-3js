@@ -1,6 +1,12 @@
 import { getStore } from '@netlify/blobs';
 import { Groq } from 'groq-sdk';
-import { asSseStream, errorResponse, simulateTokenGeneration, storeResponse, SYSTEM_PROMPT } from '../src/lib/functions';
+import {
+  asSseStream,
+  errorResponse,
+  simulateTokenGeneration,
+  storeResponse,
+  SYSTEM_PROMPT,
+} from '../src/lib/functions';
 
 const CACHE_KEY_VERSION = 'v2';
 
@@ -66,9 +72,7 @@ WHERE {
   });
 
   const response = await fetch(`${endpointUrl}?${params}`, {
-    headers: {
-      'User-Agent': 'Atlas of Space/1.0 (free-llm@openrouter.ai)',
-    },
+    headers: {},
   });
 
   if (!response.ok) {

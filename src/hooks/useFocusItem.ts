@@ -36,7 +36,7 @@ export function useFocusItem(): FocusItem | undefined {
 
   useEffect(() => {
     const namePart = focusItem?.name != null ? `${focusItem?.name} • ` : '';
-    document.title = `${namePart}Atlas of Space`;
+    document.title = `${namePart}Solar Simulator`;
   }, [focusItem?.name]);
 
   return focusItem;
